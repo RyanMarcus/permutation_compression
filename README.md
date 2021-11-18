@@ -1,5 +1,7 @@
 # permutation_compression
 
+[![Rust](https://github.com/RyanMarcus/permutation_compression/actions/workflows/rust.yml/badge.svg)](https://github.com/RyanMarcus/permutation_compression/actions/workflows/rust.yml)
+
 A Rust library to compress permutations.
 
 ```rust
