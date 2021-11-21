@@ -151,7 +151,7 @@ impl LRArray {
             let child_range_size = (curr_stop - curr_start) / 2;
 
             let free_bits_left = child_range_size - self.f[left_child_idx];
-            
+
             if free_bits_left > k {
                 // go left
                 curr_stop -= child_range_size;

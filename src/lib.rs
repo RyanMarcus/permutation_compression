@@ -3,7 +3,7 @@
 
 mod lr_array;
 
-use std::convert::TryInto;
+use std::{convert::TryInto, ops::Range};
 
 use bitpacking::{BitPacker, BitPacker4x};
 use lr_array::LRArray;
@@ -94,6 +94,59 @@ pub fn decompress_permutation(cmode: CompressionMode, data: &[u8]) -> Vec<u32> {
     return result;
 }
 
+pub fn decompress_permutation_range(
+    cmode: CompressionMode,
+    data: &[u8],
+    range: Range<usize>,
+) -> Vec<u32> {
+    if cmode == CompressionMode::Slow {
+        let perm = decompress_permutation(cmode, data);
+        return perm[range].to_vec();
+    }
+
+    let packer = BitPacker4x::new();
+    let perm_len = u32::from_le_bytes(data[0..4].try_into().unwrap()) as usize;
+    let mut next_byte = 4;
+    let mut result = Vec::with_capacity(range.len());
+
+    let mut block = vec![0; BitPacker4x::BLOCK_LEN];
+
+    // inclusive bounds
+    let first_block_idx = range.start / BitPacker4x::BLOCK_LEN;
+    let last_block_idx = range.end / BitPacker4x::BLOCK_LEN;
+
+    let mut curr_block_idx = 0;
+    while next_byte != data.len() {
+        let num_bits = data[next_byte];
+        next_byte += 1;
+
+        next_byte += packer.decompress(&data[next_byte..], &mut block, num_bits);
+
+        if curr_block_idx >= first_block_idx && curr_block_idx <= last_block_idx {
+            let curr_block_start = curr_block_idx * BitPacker4x::BLOCK_LEN;
+            let curr_block_stop = curr_block_start + BitPacker4x::BLOCK_LEN;
+
+            let rel_start = if range.start > curr_block_start {
+                range.start - curr_block_start
+            } else {
+                0
+            };
+
+            let rel_end = if range.end < curr_block_stop {
+                range.end - curr_block_start
+            } else {
+                BitPacker4x::BLOCK_LEN
+            };
+
+            result.extend_from_slice(&block[rel_start..rel_end]);
+        }
+
+        curr_block_idx += 1;
+    }
+
+    return result;
+}
+
 #[cfg(test)]
 mod tests {
     use itertools::Itertools;
@@ -171,5 +224,26 @@ mod tests {
 
             assert_eq!(recovered, orig);
         }
+    }
+
+    #[test]
+    fn test_compress_random_perm_fast_subset() {
+        let mut perm = random_lehmer(500);
+        lehmer_to_perm(&mut perm);
+        let orig = perm.clone();
+
+        let compressed = compress_permutation(CompressionMode::Fast, perm);
+        let recovered = decompress_permutation(CompressionMode::Fast, &compressed);
+
+        let slc = decompress_permutation_range(CompressionMode::Fast, &compressed, 0..10);
+        assert_eq!(slc, &recovered[0..10]);
+
+        let slc = decompress_permutation_range(CompressionMode::Fast, &compressed, 100..200);
+        assert_eq!(slc, &recovered[100..200]);
+
+        let slc = decompress_permutation_range(CompressionMode::Fast, &compressed, 100..490);
+        assert_eq!(slc, &recovered[100..490]);
+
+        assert_eq!(recovered, orig);
     }
 }
