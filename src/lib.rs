@@ -75,16 +75,16 @@ pub fn decompress_permutation(cmode: CompressionMode, data: &[u8]) -> Vec<u32> {
     let packer = BitPacker4x::new();
     let perm_len = u32::from_le_bytes(data[0..4].try_into().unwrap()) as usize;
     let mut next_byte = 4;
-    let mut result = Vec::new();
+    let mut result = Vec::with_capacity(perm_len);
 
+    let mut block = vec![0; BitPacker4x::BLOCK_LEN];
     while next_byte != data.len() {
         let num_bits = data[next_byte];
         next_byte += 1;
 
-        let mut block = vec![0; BitPacker4x::BLOCK_LEN];
         next_byte += packer.decompress(&data[next_byte..], &mut block, num_bits);
 
-        result.extend(block);
+        result.extend_from_slice(&block);
     }
 
     result.truncate(perm_len);
